@@ -9,15 +9,19 @@ always: true
 ## Structure
 
 - `memory/MEMORY.md` — Long-term facts (preferences, project context, relationships). Always loaded into your context.
-- `memory/HISTORY.md` — Append-only event log. NOT loaded into context. Search it with grep. Each entry starts with [YYYY-MM-DD HH:MM].
+- `memory/HISTORY.md` (default) or `memory/HISTORY.YYMMDD.md` (EnhancedMem) — Append-only event log. NOT loaded into context. Search with grep. Each entry starts with [YYYY-MM-DD HH:MM].
 
 ## Search Past Events
 
 ```bash
+# Default backend
 grep -i "keyword" memory/HISTORY.md
+
+# EnhancedMem backend (per-day files)
+grep -h -i "keyword" memory/HISTORY.*.md
 ```
 
-Use the `exec` tool to run grep. Combine patterns: `grep -iE "meeting|deadline" memory/HISTORY.md`
+Use the `exec` tool. Combine patterns: `grep -iE "meeting|deadline" memory/HISTORY*.md`
 
 ## When to Update MEMORY.md
 

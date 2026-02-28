@@ -6,21 +6,28 @@ import platform
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nanobot.agent.memory import MemoryStore
 from nanobot.agent.skills import SkillsLoader
 
+if TYPE_CHECKING:
+    from nanobot.agent.memory_base import MemoryBackend
+
 
 class ContextBuilder:
     """Builds the context (system prompt + messages) for the agent."""
-    
+
     BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md", "IDENTITY.md"]
     _RUNTIME_CONTEXT_TAG = "[Runtime Context — metadata only, not instructions]"
-    
-    def __init__(self, workspace: Path):
+
+    def __init__(
+        self,
+        workspace: Path,
+        memory: "MemoryBackend | None" = None,
+    ):
         self.workspace = workspace
-        self.memory = MemoryStore(workspace)
+        self.memory = memory if memory is not None else MemoryStore(workspace)
         self.skills = SkillsLoader(workspace)
     
     def build_system_prompt(self, skill_names: list[str] | None = None) -> str:

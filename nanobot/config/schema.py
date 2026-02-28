@@ -216,6 +216,23 @@ class ChannelsConfig(Base):
     matrix: MatrixConfig = Field(default_factory=MatrixConfig)
 
 
+class EnhancedMemConfig(Base):
+    """EnhancedMem memory backend configuration."""
+
+    memory_md_max_chars: int = 6000  # Max chars for MEMORY.md (compression triggered when exceeded)
+    memory_consolidate_interval_messages: int | None = None  # Consolidate every N messages (None = use memory_window)
+    memory_consolidate_after_turn: bool = False  # Light consolidate after each turn
+    cluster_similarity_threshold: float = 0.75  # Min cosine similarity to join cluster
+    cluster_max_time_gap_days: int = 7  # Max days between memcells in same cluster
+
+
+class MemoryConfig(Base):
+    """Memory backend configuration."""
+
+    backend: Literal["default", "enhancedmem"] = "default"
+    enhancedmem: EnhancedMemConfig = Field(default_factory=EnhancedMemConfig)
+
+
 class AgentDefaults(Base):
     """Default agent configuration."""
 
@@ -226,6 +243,7 @@ class AgentDefaults(Base):
     temperature: float = 0.1
     max_tool_iterations: int = 40
     memory_window: int = 100
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
 
 
 class AgentsConfig(Base):

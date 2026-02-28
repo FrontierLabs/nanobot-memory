@@ -27,6 +27,7 @@ from nanobot.providers.base import LLMProvider
 from nanobot.session.manager import Session, SessionManager
 
 if TYPE_CHECKING:
+    from nanobot.agent.memory_base import MemoryBackend
     from nanobot.config.schema import ChannelsConfig, ExecToolConfig
     from nanobot.cron.service import CronService
 
@@ -55,6 +56,8 @@ class AgentLoop:
         temperature: float = 0.1,
         max_tokens: int = 4096,
         memory_window: int = 100,
+        memory_consolidate_interval: int | None = None,
+        memory_consolidate_after_turn: bool = False,
         brave_api_key: str | None = None,
         exec_config: ExecToolConfig | None = None,
         cron_service: CronService | None = None,
@@ -62,6 +65,7 @@ class AgentLoop:
         session_manager: SessionManager | None = None,
         mcp_servers: dict | None = None,
         channels_config: ChannelsConfig | None = None,
+        memory_store: MemoryBackend | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         self.bus = bus
@@ -73,12 +77,20 @@ class AgentLoop:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.memory_window = memory_window
+        # When memory_consolidate_after_turn: use low threshold (6) so boundary detection runs every ~2-3 turns
+        if memory_consolidate_interval is not None:
+            self._consolidate_threshold = memory_consolidate_interval
+        elif memory_consolidate_after_turn:
+            self._consolidate_threshold = min(6, memory_window)
+        else:
+            self._consolidate_threshold = memory_window
         self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
 
-        self.context = ContextBuilder(workspace)
+        memory = memory_store if memory_store is not None else MemoryStore(workspace)
+        self.context = ContextBuilder(workspace, memory=memory)
         self.sessions = session_manager or SessionManager(workspace)
         self.tools = ToolRegistry()
         self.subagents = SubagentManager(
@@ -379,14 +391,16 @@ class AgentLoop:
                                   content="🐈 nanobot commands:\n/new — Start a new conversation\n/stop — Stop the current task\n/help — Show available commands")
 
         unconsolidated = len(session.messages) - session.last_consolidated
-        if (unconsolidated >= self.memory_window and session.key not in self._consolidating):
+        if (unconsolidated >= self._consolidate_threshold and session.key not in self._consolidating):
             self._consolidating.add(session.key)
             lock = self._consolidation_locks.setdefault(session.key, asyncio.Lock())
+            # Pass current user message so boundary detection can see the topic-changing message
+            pending_msg = msg
 
             async def _consolidate_and_unlock():
                 try:
                     async with lock:
-                        await self._consolidate_memory(session)
+                        await self._consolidate_memory(session, pending_message=pending_msg)
                 finally:
                     self._consolidating.discard(session.key)
                     if not lock.locked():
@@ -461,11 +475,14 @@ class AgentLoop:
             session.messages.append(entry)
         session.updated_at = datetime.now()
 
-    async def _consolidate_memory(self, session, archive_all: bool = False) -> bool:
-        """Delegate to MemoryStore.consolidate(). Returns True on success."""
-        return await MemoryStore(self.workspace).consolidate(
+    async def _consolidate_memory(
+        self, session, archive_all: bool = False, pending_message=None
+    ) -> bool:
+        """Delegate to memory backend consolidate(). Returns True on success."""
+        return await self.context.memory.consolidate(
             session, self.provider, self.model,
             archive_all=archive_all, memory_window=self.memory_window,
+            pending_user_message=pending_message,
         )
 
     async def process_direct(

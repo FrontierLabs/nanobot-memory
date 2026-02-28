@@ -74,6 +74,7 @@ class MemoryStore:
         *,
         archive_all: bool = False,
         memory_window: int = 50,
+        pending_user_message: object | None = None,
     ) -> bool:
         """Consolidate old messages into MEMORY.md + HISTORY.md via LLM tool call.
 

@@ -274,6 +274,21 @@ def gateway(
     cron = CronService(cron_store_path)
     
     # Create agent with cron service
+    from nanobot.agent.memory_factory import make_memory_store
+
+    defaults = config.agents.defaults
+    memory_store = make_memory_store(config.workspace_path, defaults)
+    consolidate_interval = None
+    consolidate_after_turn = False
+    if getattr(defaults.memory, "backend", "default") == "enhancedmem":
+        consolid_cfg = getattr(defaults.memory, "enhancedmem", None)
+        if consolid_cfg:
+            consolidate_interval = getattr(
+                consolid_cfg, "memory_consolidate_interval_messages", None
+            )
+            consolidate_after_turn = getattr(
+                consolid_cfg, "memory_consolidate_after_turn", False
+            )
     agent = AgentLoop(
         bus=bus,
         provider=provider,
@@ -290,8 +305,11 @@ def gateway(
         session_manager=session_manager,
         mcp_servers=config.tools.mcp_servers,
         channels_config=config.channels,
+        memory_store=memory_store,
+        memory_consolidate_interval=consolidate_interval,
+        memory_consolidate_after_turn=consolidate_after_turn,
     )
-    
+
     # Set cron callback (needs agent)
     async def on_cron_job(job: CronJob) -> str | None:
         """Execute a cron job through the agent."""
@@ -431,22 +449,40 @@ def agent(
         logger.enable("nanobot")
     else:
         logger.disable("nanobot")
-    
+
+    from nanobot.agent.memory_factory import make_memory_store
+
+    defaults = config.agents.defaults
+    memory_store = make_memory_store(config.workspace_path, defaults)
+    consolidate_interval = None
+    consolidate_after_turn = False
+    if getattr(defaults.memory, "backend", "default") == "enhancedmem":
+        consolid_cfg = getattr(defaults.memory, "enhancedmem", None)
+        if consolid_cfg:
+            consolidate_interval = getattr(
+                consolid_cfg, "memory_consolidate_interval_messages", None
+            )
+            consolidate_after_turn = getattr(
+                consolid_cfg, "memory_consolidate_after_turn", False
+            )
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,
         workspace=config.workspace_path,
-        model=config.agents.defaults.model,
-        temperature=config.agents.defaults.temperature,
-        max_tokens=config.agents.defaults.max_tokens,
-        max_iterations=config.agents.defaults.max_tool_iterations,
-        memory_window=config.agents.defaults.memory_window,
+        model=defaults.model,
+        temperature=defaults.temperature,
+        max_tokens=defaults.max_tokens,
+        max_iterations=defaults.max_tool_iterations,
+        memory_window=defaults.memory_window,
         brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
         cron_service=cron,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         mcp_servers=config.tools.mcp_servers,
         channels_config=config.channels,
+        memory_store=memory_store,
+        memory_consolidate_interval=consolidate_interval,
+        memory_consolidate_after_turn=consolidate_after_turn,
     )
     
     # Show spinner when logs are off (no output to miss); skip when logs are on
@@ -923,20 +959,39 @@ def cron_run(
     config = load_config()
     provider = _make_provider(config)
     bus = MessageBus()
+
+    from nanobot.agent.memory_factory import make_memory_store
+
+    defaults = config.agents.defaults
+    memory_store = make_memory_store(config.workspace_path, defaults)
+    consolidate_interval = None
+    consolidate_after_turn = False
+    if getattr(defaults.memory, "backend", "default") == "enhancedmem":
+        consolid_cfg = getattr(defaults.memory, "enhancedmem", None)
+        if consolid_cfg:
+            consolidate_interval = getattr(
+                consolid_cfg, "memory_consolidate_interval_messages", None
+            )
+            consolidate_after_turn = getattr(
+                consolid_cfg, "memory_consolidate_after_turn", False
+            )
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,
         workspace=config.workspace_path,
-        model=config.agents.defaults.model,
-        temperature=config.agents.defaults.temperature,
-        max_tokens=config.agents.defaults.max_tokens,
-        max_iterations=config.agents.defaults.max_tool_iterations,
-        memory_window=config.agents.defaults.memory_window,
+        model=defaults.model,
+        temperature=defaults.temperature,
+        max_tokens=defaults.max_tokens,
+        max_iterations=defaults.max_tool_iterations,
+        memory_window=defaults.memory_window,
         brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         mcp_servers=config.tools.mcp_servers,
         channels_config=config.channels,
+        memory_store=memory_store,
+        memory_consolidate_interval=consolidate_interval,
+        memory_consolidate_after_turn=consolidate_after_turn,
     )
 
     store_path = get_data_dir() / "cron" / "jobs.json"

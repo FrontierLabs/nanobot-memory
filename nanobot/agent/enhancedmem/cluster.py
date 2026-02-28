@@ -6,6 +6,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from loguru import logger
+
 
 def cluster_id_from_timestamp(ts: str) -> str:
     """Derive cluster ID from MemCell timestamp (YYYY-MM-DD)."""
@@ -20,7 +22,10 @@ def load_cluster_state(path: Path) -> dict:
     """Load cluster state from JSON file."""
     if path.exists():
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+            state = json.loads(text)
+            logger.debug("EnhancedMem [file READ] cluster_state.json: {} eventids", len(state.get("eventid_to_cluster", {})))
+            return state
         except (json.JSONDecodeError, OSError):
             pass
     return {
@@ -33,7 +38,9 @@ def load_cluster_state(path: Path) -> dict:
 def save_cluster_state(path: Path, state: dict) -> None:
     """Save cluster state to JSON file."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    text = json.dumps(state, ensure_ascii=False, indent=2)
+    path.write_text(text, encoding="utf-8")
+    logger.debug("EnhancedMem [file WRITE] cluster_state.json: {} eventids", len(state.get("eventid_to_cluster", {})))
 
 
 def assign_memcell_to_cluster(

@@ -95,11 +95,15 @@ class EnhancedMemStore:
 
     def read_long_term(self) -> str:
         if self.memory_file.exists():
-            return self.memory_file.read_text(encoding="utf-8")
+            content = self.memory_file.read_text(encoding="utf-8")
+            logger.debug("EnhancedMem [file READ] MEMORY.md: {} chars", len(content))
+            return content
+        logger.debug("EnhancedMem [file READ] MEMORY.md: not exists")
         return ""
 
     def write_long_term(self, content: str) -> None:
         self.memory_file.write_text(content, encoding="utf-8")
+        logger.debug("EnhancedMem [file WRITE] MEMORY.md: {} chars", len(content))
 
     def append_history(self, entry: str) -> None:
         """Append to HISTORY.YYMMDD.md for the date in entry, or today if no timestamp."""
@@ -113,6 +117,7 @@ class EnhancedMemStore:
         path = _history_path_for_date(self.memory_dir, dt)
         with open(path, "a", encoding="utf-8") as f:
             f.write(entry.rstrip() + "\n\n")
+        logger.debug("EnhancedMem [file APPEND] {}: {} chars", path.name, len(entry))
 
     def get_memory_context(self, query: str | None = None) -> str:
         """Build memory context from MEMORY.md + retrieved episodes/events (by query or recent)."""
@@ -158,7 +163,9 @@ class EnhancedMemStore:
         hits = []
         for path in sorted(self.memory_dir.glob("HISTORY.*.md"), reverse=True)[:14]:
             try:
-                for line in path.read_text(encoding="utf-8").splitlines():
+                text = path.read_text(encoding="utf-8")
+                logger.debug("EnhancedMem [file READ] {}: {} lines (retrieve_history)", path.name, len(text.splitlines()))
+                for line in text.splitlines():
                     if any(t in line for t in terms):
                         hits.append(line.strip())
                         if len(hits) >= limit:
@@ -171,7 +178,9 @@ class EnhancedMemStore:
         """Retrieve episodes by keyword match with query, or recent N if no query/no matches."""
         if not self.episodes_file.exists():
             return []
-        lines = self.episodes_file.read_text(encoding="utf-8").strip().splitlines()
+        text = self.episodes_file.read_text(encoding="utf-8")
+        lines = text.strip().splitlines()
+        logger.debug("EnhancedMem [file READ] episodes.jsonl: {} lines (retrieve_episodes)", len(lines))
         episodes = []
         for line in lines:
             if not line.strip():
@@ -209,7 +218,9 @@ class EnhancedMemStore:
         """Read last N episodes from episodes.jsonl."""
         if not self.episodes_file.exists():
             return []
-        lines = self.episodes_file.read_text(encoding="utf-8").strip().splitlines()
+        text = self.episodes_file.read_text(encoding="utf-8")
+        lines = text.strip().splitlines()
+        logger.debug("EnhancedMem [file READ] episodes.jsonl: {} lines (_get_recent_episodes)", len(lines))
         episodes = []
         for line in reversed(lines):
             if not line.strip():
@@ -369,8 +380,10 @@ class EnhancedMemStore:
 
     def _append_memcell(self, memcell: dict) -> None:
         """Append MemCell to memcells.jsonl."""
+        line = json.dumps(memcell, ensure_ascii=False) + "\n"
         with open(self.memcells_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(memcell, ensure_ascii=False) + "\n")
+            f.write(line)
+        logger.debug("EnhancedMem [file APPEND] memcells.jsonl: event_id={}", memcell.get("event_id", "?"))
 
     def _format_conversation_for_extractors(self, original_data: list) -> str:
         """Format original_data for Episode/EventLog/Foresight prompts."""
@@ -417,6 +430,7 @@ class EnhancedMemStore:
                 }
                 with open(self.episodes_file, "a", encoding="utf-8") as f:
                     f.write(json.dumps(episode, ensure_ascii=False) + "\n")
+                logger.debug("EnhancedMem [file APPEND] episodes.jsonl: event_id={} title=\"{}\"", memcell.get("event_id", "?"), (data.get("title", "") or "")[:40])
                 return episode
         except Exception as e:
             logger.warning("Episode extraction failed: {}", e)
@@ -489,6 +503,7 @@ class EnhancedMemStore:
                         item["event_id"] = memcell.get("event_id")
                         with open(self.foresights_file, "a", encoding="utf-8") as f:
                             f.write(json.dumps(item, ensure_ascii=False) + "\n")
+                        logger.debug("EnhancedMem [file APPEND] foresights.jsonl: event_id={}", memcell.get("event_id", "?"))
         except Exception as e:
             logger.warning("Foresight extraction failed: {}", e)
 
@@ -500,7 +515,11 @@ class EnhancedMemStore:
         if not conv.strip():
             return
         user_md = self.workspace / "USER.md"
-        current = user_md.read_text(encoding="utf-8") if user_md.exists() else "(空)"
+        if user_md.exists():
+            current = user_md.read_text(encoding="utf-8")
+            logger.debug("EnhancedMem [file READ] USER.md: {} chars (_extract_life_profile)", len(current))
+        else:
+            current = "(空)"
         prompt = PROFILE_LIFE_UPDATE_PROMPT.format(
             current_profile=current,
             conversations=conv,
@@ -530,6 +549,7 @@ class EnhancedMemStore:
                                 current += line + "\n"
                                 user_md.parent.mkdir(parents=True, exist_ok=True)
                                 user_md.write_text(current, encoding="utf-8")
+                                logger.debug("EnhancedMem [file WRITE] USER.md: {} chars (life_profile add)", len(current))
         except Exception as e:
             logger.warning("Life Profile extraction failed: {}", e)
 

@@ -114,25 +114,96 @@ class EnhancedMemStore:
         with open(path, "a", encoding="utf-8") as f:
             f.write(entry.rstrip() + "\n\n")
 
-    def get_memory_context(self) -> str:
-        """Build memory context from MEMORY.md + recent episodes."""
+    def get_memory_context(self, query: str | None = None) -> str:
+        """Build memory context from MEMORY.md + retrieved episodes/events (by query or recent)."""
         long_term = self.read_long_term()
         parts = []
 
         if long_term:
             parts.append(f"## Long-term Memory\n{long_term}")
 
-        recent = self._get_recent_episodes(limit=3)
-        if recent:
+        episodes = self._retrieve_episodes(query=query, limit=5)
+        ep_mode = "retrieved" if (query and query.strip()) else "recent"
+        if episodes:
             ep_text = "\n\n".join(
                 f"**{e.get('title', '')}** ({e.get('timestamp', '')[:10]}): {e.get('summary', '')}"
-                for e in recent
+                for e in episodes
             )
-            parts.append(f"## Recent Episodes\n{ep_text}")
+            section = "## Retrieved Episodes" if ep_mode == "retrieved" else "## Recent Episodes"
+            parts.append(f"{section}\n{ep_text}")
+
+        # Query-based retrieval from HISTORY.YYMMDD.md (EventLog)
+        history_hits = []
+        if query and len(query.strip()) >= 2:
+            history_hits = self._retrieve_history(query=query.strip(), limit=5)
+            if history_hits:
+                parts.append("## Relevant History\n" + "\n".join(history_hits))
+
+        if parts:
+            query_preview = (query or "")[:50] + ("..." if len(query or "") > 50 else "")
+            logger.info(
+                "EnhancedMem context loaded: MEMORY={}ch, episodes={} ({}){}, history={}",
+                len(long_term), len(episodes), ep_mode, f", query=\"{query_preview}\"" if query else "", len(history_hits),
+            )
 
         if not parts:
             return ""
         return "\n\n".join(parts)
+
+    def _retrieve_history(self, query: str, limit: int = 5) -> list[str]:
+        """Retrieve EventLog lines matching query keywords from HISTORY.YYMMDD.md."""
+        terms = [t for t in query.split() if len(t) >= 2]
+        if not terms:
+            return []
+        hits = []
+        for path in sorted(self.memory_dir.glob("HISTORY.*.md"), reverse=True)[:14]:
+            try:
+                for line in path.read_text(encoding="utf-8").splitlines():
+                    if any(t in line for t in terms):
+                        hits.append(line.strip())
+                        if len(hits) >= limit:
+                            return hits
+            except OSError:
+                continue
+        return hits
+
+    def _retrieve_episodes(self, query: str | None = None, limit: int = 5) -> list[dict]:
+        """Retrieve episodes by keyword match with query, or recent N if no query/no matches."""
+        if not self.episodes_file.exists():
+            return []
+        lines = self.episodes_file.read_text(encoding="utf-8").strip().splitlines()
+        episodes = []
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                episodes.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+        if not episodes:
+            return []
+
+        # No query or too short: use most recent
+        terms = []
+        if query and len(query.strip()) >= 2:
+            terms = [t for t in query.strip().split() if len(t) >= 2]
+        if not terms:
+            return list(reversed(episodes))[-limit:]
+
+        # Score by keyword overlap in title + summary + content
+        def score(ep: dict) -> int:
+            text = " ".join(
+                str(ep.get(k, "")) for k in ("title", "summary", "content")
+            )
+            return sum(1 for t in terms if t in text)
+
+        scored = [(ep, score(ep)) for ep in episodes]
+        scored.sort(key=lambda x: (-x[1], x[0].get("timestamp", "") or ""))
+        chosen = [ep for ep, s in scored if s > 0][:limit]
+        if not chosen:
+            return list(reversed(episodes))[-limit:]
+        return chosen
 
     def _get_recent_episodes(self, limit: int = 5) -> list[dict]:
         """Read last N episodes from episodes.jsonl."""

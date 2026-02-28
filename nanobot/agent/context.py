@@ -30,7 +30,9 @@ class ContextBuilder:
         self.memory = memory if memory is not None else MemoryStore(workspace)
         self.skills = SkillsLoader(workspace)
     
-    def build_system_prompt(self, skill_names: list[str] | None = None) -> str:
+    def build_system_prompt(
+        self, skill_names: list[str] | None = None, query: str | None = None
+    ) -> str:
         """Build the system prompt from identity, bootstrap files, memory, and skills."""
         parts = [self._get_identity()]
 
@@ -38,7 +40,7 @@ class ContextBuilder:
         if bootstrap:
             parts.append(bootstrap)
 
-        memory = self.memory.get_memory_context()
+        memory = self.memory.get_memory_context(query=query)
         if memory:
             parts.append(f"# Memory\n\n{memory}")
 
@@ -120,7 +122,10 @@ Reply directly with text for conversations. Only use the 'message' tool to send 
     ) -> list[dict[str, Any]]:
         """Build the complete message list for an LLM call."""
         return [
-            {"role": "system", "content": self.build_system_prompt(skill_names)},
+            {
+                "role": "system",
+                "content": self.build_system_prompt(skill_names, query=current_message),
+            },
             *history,
             {"role": "user", "content": self._build_runtime_context(channel, chat_id)},
             {"role": "user", "content": self._build_user_content(current_message, media)},

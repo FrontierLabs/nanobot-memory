@@ -62,7 +62,7 @@ class MemoryStore:
         with open(self.history_file, "a", encoding="utf-8") as f:
             f.write(entry.rstrip() + "\n\n")
 
-    def get_memory_context(self) -> str:
+    def get_memory_context(self, query: str | None = None) -> str:
         long_term = self.read_long_term()
         return f"## Long-term Memory\n{long_term}" if long_term else ""
 

@@ -24,8 +24,8 @@ class MemoryBackend(Protocol):
         """Append an entry to history log."""
         ...
 
-    def get_memory_context(self) -> str:
-        """Get memory context string for system prompt."""
+    def get_memory_context(self, query: str | None = None) -> str:
+        """Get memory context string for system prompt. query=current message for retrieval."""
         ...
 
     async def consolidate(

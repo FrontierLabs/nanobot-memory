@@ -20,6 +20,7 @@ from nanobot.agent.enhancedmem.prompts_zh import (
     EVENT_LOG_PROMPT,
     FORESIGHT_GENERATION_PROMPT,
     GROUP_EPISODE_GENERATION_PROMPT,
+    MEMORY_COMPRESS_PROMPT,
     PROFILE_LIFE_UPDATE_PROMPT,
 )
 from nanobot.utils.helpers import ensure_dir
@@ -360,7 +361,7 @@ class EnhancedMemStore:
         }
 
     def _compact_memory_text(self, content: str) -> str:
-        """Truncate memory to stay under max chars, keeping most recent facts."""
+        """Truncate memory to stay under max chars, keeping most recent facts. Fallback when LLM compression is not used or fails."""
         if len(content) <= self._memory_md_max_chars:
             return content
         lines = content.strip().splitlines()
@@ -377,6 +378,40 @@ class EnhancedMemStore:
         kept_facts = facts[-keep:] if len(facts) > keep else facts
         result = "\n".join(header + [""] + kept_facts) + "\n"
         return result[: self._memory_md_max_chars]
+
+    async def _compact_memory_with_llm(
+        self, content: str, provider: "LLMProvider", model: str
+    ) -> str:
+        """Ask LLM to compress MEMORY.md: keep important facts, merge redundant, remove low-value, stay under max chars. Fallback to _compact_memory_text on failure."""
+        if len(content) <= self._memory_md_max_chars:
+            return content
+        prompt = MEMORY_COMPRESS_PROMPT.format(
+            max_chars=self._memory_md_max_chars,
+            content=content,
+        )
+        try:
+            resp = await provider.chat(
+                messages=[
+                    {"role": "system", "content": "你只输出压缩后的 Markdown 内容，不要任何解释或代码块包裹。"},
+                    {"role": "user", "content": prompt},
+                ],
+                tools=None,
+                model=model,
+                temperature=0.2,
+            )
+            text = (resp.content or "").strip()
+            # Strip common code-block wrappers if model ignored instruction
+            for start in ("```markdown\n", "```md\n", "```\n"):
+                if text.startswith(start):
+                    text = text[len(start) :].strip()
+            if text.endswith("```"):
+                text = text[:-3].strip()
+            if len(text) <= self._memory_md_max_chars and len(text) > 0:
+                logger.info("EnhancedMem MEMORY.md compressed by LLM: {} -> {} chars", len(content), len(text))
+                return text
+        except Exception as e:
+            logger.warning("MEMORY.md LLM compression failed, using truncation fallback: {}", e)
+        return self._compact_memory_text(content)
 
     def _append_memcell(self, memcell: dict) -> None:
         """Append MemCell to memcells.jsonl."""
@@ -634,7 +669,7 @@ class EnhancedMemStore:
                 updated = (current_memory.rstrip() + "\n" + new_fact + "\n") if current_memory else (new_fact + "\n")
                 if new_fact not in current_memory:
                     if len(updated) > self._memory_md_max_chars:
-                        updated = self._compact_memory_text(updated)
+                        updated = await self._compact_memory_with_llm(updated, provider, model)
                     self.write_long_term(updated)
 
             session.last_consolidated = 0 if archive_all else len(session.messages) - keep_count

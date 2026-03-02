@@ -2,6 +2,7 @@
 
 - [ ] 推断的更新：推断明显会因为一些新发生的事情变得提前失效，缺少复核（复核时机怎么设计？）
 - [ ] SOUL.md更新尚未实现，目前实现了对USER.md的更新
+- [ ] 预留的clusterSimilarityThreshold、clusterMaxTimeGapDays没有在代码中使用
 
 # 问题记录
 

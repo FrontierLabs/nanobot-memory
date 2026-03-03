@@ -59,3 +59,24 @@ Prompt 使用中文（边界检测、Episode、EventLog、Foresight、Life Profi
 - **基于簇的画像**：不实现「工作·群聊」等按簇的 Profile，仅做 Life Profile（生活画像）。
 - **语义聚类**：聚类目前按时间（按日），未接向量检索；配置中的 `clusterSimilarityThreshold` 等预留。
 - 其他已知问题见仓库内 [MEMORY_TODO_AND_PROBLEM.md](MEMORY_TODO_AND_PROBLEM.md)。
+
+## 与 upstream/main 同步时减少冲突的设计建议
+
+本 fork 在 **config/schema、agent/loop、agent/context、cli/commands** 等与上游共用的文件中增加了 memory 相关逻辑，`git pull upstream main` 时容易在同一段代码上产生冲突。建议：
+
+1. **配置层（schema）**  
+   - 在 `AgentDefaults` 等共用 model 里**只做加法**：保留上游已有字段，本 fork 只新增 `memory: MemoryConfig` 等字段，避免删除或重命名上游字段。  
+   - 上游新增字段（如 `reasoning_effort`）合并时**一并保留**，与 memory 配置并列。  
+   - **当前实现**：`AgentDefaults` 同时包含 `memory` 与 `reasoning_effort`，符合上述规则。
+
+2. **AgentLoop / ContextBuilder**  
+   - 构造函数采用**尾部追加参数**：本 fork 的 `memory_consolidate_interval`、`memory_consolidate_after_turn` 等加在现有参数之后；上游新参数（如 `reasoning_effort`）合并时同样追加，并两处都赋值（如 `self.reasoning_effort = reasoning_effort` 与 consolidate 逻辑并存）。  
+   - **ContextBuilder**：若上游只有 `workspace`，本 fork 只追加可选参数 `memory`；`build_system_prompt` 同理，只追加可选参数 `query`，不删改上游已有参数。  
+   - **当前实现**：`AgentLoop.__init__` 中 consolidate 相关参数与 `reasoning_effort` 并存且均赋值；`ContextBuilder` 保留 `memory` 与 `query` 的追加式签名。
+
+3. **CLI（commands）**  
+   - 创建 AgentLoop 前用 `defaults = config.agents.defaults`，传参时统一用 `defaults.*`，并**显式传入上游新增项**（如 `reasoning_effort=defaults.reasoning_effort`），避免与上游改成 `config.agents.defaults.xxx` 的写法冲突，同时保证新参数不遗漏。  
+   - **当前实现**：两处创建 AgentLoop 的代码均使用 `defaults` 并显式传入 `reasoning_effort=defaults.reasoning_effort` 及本 fork 的 `memory_store`、`memory_consolidate_interval`、`memory_consolidate_after_turn`。
+
+4. **长期策略**  
+   - 若本 fork 的 memory 逻辑继续膨胀，可考虑把 **EnhancedMem 的组装与配置** 抽到独立模块（例如 `nanobot/agent/enhancedmem/bootstrap.py` 或 `cli/memory_runner.py`），在 `commands.py` 里只保留一两处「若启用 enhancedmem 则调用该模块」，减少与上游对同一行、同一函数的修改。

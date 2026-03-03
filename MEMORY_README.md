@@ -58,4 +58,4 @@ Prompt 使用中文（边界检测、Episode、EventLog、Foresight、Life Profi
 
 - **基于簇的画像**：不实现「工作·群聊」等按簇的 Profile，仅做 Life Profile（生活画像）。
 - **语义聚类**：聚类目前按时间（按日），未接向量检索；配置中的 `clusterSimilarityThreshold` 等预留。
-- 其他已知问题见仓库内 [nanobot/发现问题及TODO清单.md](nanobot/发现问题及TODO清单.md)。
+- 其他已知问题见仓库内 [MEMORY_TODO_AND_PROBLEM.md](MEMORY_TODO_AND_PROBLEM.md)。

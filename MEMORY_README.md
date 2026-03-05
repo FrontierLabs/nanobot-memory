@@ -120,9 +120,15 @@ flowchart TD
 
   memcell_create --> life_profile["_extract_life_profile\nLLM 返回 operations"]
   life_profile --> read_user["读取 USER.md（不存在则视为空）"]
-  read_user --> lp_ops{"遍历 operations"}
-  lp_ops -->|add + explicit_info| lp_add["把 description 追加到 USER.md\n'## 对话学习' 段落下\n并写回 USER.md"]
-  lp_ops -->|update / delete / none| lp_ignore["当前实现：忽略\n不修改文件"]:::dim
+  read_user --> parse_profile["解析 Life Profile 区块\n拆分 explicit_info / implicit_traits"]
+  parse_profile --> lp_ops{"遍历 operations（add/update/delete/none）"}
+  lp_ops -->|add / update / delete| lp_apply["更新 explicit_info / implicit_traits\n并追加溯源 '时间|event_id'"]
+  lp_ops -->|none| lp_none["本轮对话不修改画像"]:::dim
+  lp_apply --> lp_capacity{"画像条目是否超过\nlifeProfileMaxItems？"}
+  lp_capacity -->|否| lp_skip_compact["条数未超限\n跳过压缩"]:::dim
+  lp_capacity -->|是| lp_compact["调用 PROFILE_LIFE_COMPACT_PROMPT\nLLM 压缩画像"]
+  lp_compact --> write_user["渲染并写回 USER.md\n更新 Life Profile 区块"]
+  lp_skip_compact --> write_user
 
   memcell_create --> topic_summary_step["生成 history_entry = [ts] topic_summary"]
   topic_summary_step --> hist_summary["append_history(history_entry)\n写入 memory/HISTORY.YYMMDD.md"]
@@ -136,8 +142,8 @@ flowchart TD
   mem_write --> session_done["更新 session.last_consolidated\nconsolidate 返回 True"]
   mem_skip --> session_done
   hist_summary --> session_done
-  lp_add --> session_done
-  lp_ignore --> session_done
+  write_user --> session_done
+  lp_none --> session_done
   skip_consol --> session_done
 
   classDef dim fill:#f2f2f2,stroke:#c8c8c8,color:#666;

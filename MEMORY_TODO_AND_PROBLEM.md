@@ -1,11 +1,17 @@
 # TODO
 
-- [ ] 推断的更新：推断明显会因为一些新发生的事情变得提前失效，缺少复核（复核时机怎么设计？）
-- [ ] SOUL.md更新尚未实现，目前实现了对USER.md的更新 
-- [ ] cluster现在只是按照日期分桶
-- [ ] cluster在检索的时候没有生效
-- [ ] 预留的clusterSimilarityThreshold、clusterMaxTimeGapDays没有在代码中使用
-- [ ] PROFILE_LIFE_UPDATE_PROMPT life profile更新的时候没有考虑cluster的信息，应该把聚合的相关信息都带出来供这次使用
+- 未实现
+    - [ ] SOUL.md更新尚未实现，目前实现了对USER.md的更新 
+    - [ ] life profile如果预测为update delete当前没有实现, nanobot-memory/blob/main/nanobot/agent/enhancedmem/store.py#L572-L573
+- Memory的更新相关
+    - [ ] 推断的更新：推断明显会因为一些新发生的事情变得提前失效，缺少复核（复核时机怎么设计？）
+- 聚类相关
+    - [ ] cluster现在只是按照日期分桶
+    - [ ] cluster在检索的时候没有生效
+    - [ ] 预留的clusterSimilarityThreshold、clusterMaxTimeGapDays没有在代码中使用
+- 字段更新逻辑
+    - [ ] PROFILE_LIFE_UPDATE_PROMPT life profile更新的时候没有考虑cluster的信息，应该把聚合的相关信息都带出来供这次使用
+    - [ ] /new的时候_consolidate_memory的archive_all=True，这时候不修改Memory.md，其他时候consolide会写入Memory.md，但是archive_all=True（即topic_summary="会话归档"）的时候需要清空memory.md的appended？
 
 # 问题记录
 

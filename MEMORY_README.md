@@ -80,3 +80,63 @@ Prompt 使用中文（边界检测、Episode、EventLog、Foresight、Life Profi
 
 4. **长期策略**  
    - 若本 fork 的 memory 逻辑继续膨胀，可考虑把 **EnhancedMem 的组装与配置** 抽到独立模块（例如 `nanobot/agent/enhancedmem/bootstrap.py` 或 `cli/memory_runner.py`），在 `commands.py` 里只保留一两处「若启用 enhancedmem 则调用该模块」，减少与上游对同一行、同一函数的修改。
+
+
+## 记忆相关当前流程图
+
+```mermaid
+flowchart TD
+  user_msg["用户发送消息"] --> proc_msg["AgentLoop._process_message"]
+
+  proc_msg --> thresh{"未整合消息数是否达到阈值？\nunconsolidated >= _consolidate_threshold"}
+  thresh -->|否| normal_reply["正常对话流程\n不触发记忆整合"]:::dim
+  thresh -->|是| call_consol["_consolidate_memory(session,\npending_message=当前用户消息)"]
+  call_consol --> em_consol["EnhancedMemStore.consolidate(session, provider, model)"]
+
+  subgraph CONSOLIDATE_FLOW["EnhancedMemStore.consolidate"]
+    em_consol --> arch_check{"archive_all ?"}
+    arch_check -->|是| arch_case["归档模式（例如 /new）\nshould_end=true\ntopic_summary='会话归档'"]
+    arch_check -->|否| bd_call["_detect_boundary(history_msgs, new_msgs)"]
+
+    bd_call --> bd_skip{"should_end 为 false 且非归档？"}
+    bd_skip -->|是| skip_consol["跳过本次 consolidate\n等待更多消息或主题变化"]:::dim
+    bd_skip -->|否| memcell_create["_create_memcell(old_messages, topic_summary)"]
+    arch_case --> memcell_create
+  end
+
+  memcell_create --> write_memcell["_append_memcell\n追加到 memory/memcells.jsonl"]
+  write_memcell --> cluster["assign_memcell_to_cluster\n读写 memory/cluster_state.json"]
+
+  memcell_create --> ep_extract["_extract_episode\nLLM 生成 Episode"]
+  ep_extract --> ep_write["追加到 memory/episodes.jsonl"]
+
+  memcell_create --> ev_extract["_extract_eventlog\nLLM 提取 atomic facts"]
+  ev_extract --> ev_append["对每条 fact 调用 append_history\n写入 memory/HISTORY.YYMMDD.md"]
+
+  memcell_create --> foresight_extract["_extract_foresight\nLLM 生成 foresight"]
+  foresight_extract --> foresight_write["追加到 memory/foresights.jsonl"]
+
+  memcell_create --> life_profile["_extract_life_profile\nLLM 返回 operations"]
+  life_profile --> read_user["读取 USER.md（不存在则视为空）"]
+  read_user --> lp_ops{"遍历 operations"}
+  lp_ops -->|add + explicit_info| lp_add["把 description 追加到 USER.md\n'## 对话学习' 段落下\n并写回 USER.md"]
+  lp_ops -->|update / delete / none| lp_ignore["当前实现：忽略\n不修改文件"]:::dim
+
+  memcell_create --> topic_summary_step["生成 history_entry = [ts] topic_summary"]
+  topic_summary_step --> hist_summary["append_history(history_entry)\n写入 memory/HISTORY.YYMMDD.md"]
+
+  topic_summary_step --> read_memory["read_long_term 读取 memory/MEMORY.md"]
+  read_memory --> mem_check{"topic_summary 可写入 MEMORY.md？\n非空 且 不等于 会话归档 且 不重复"}
+  mem_check -->|否| mem_skip["不修改 MEMORY.md"]:::dim
+  mem_check -->|是| mem_update["追加 '- ts: topic_summary'\n如超限则触发压缩\n然后写回 MEMORY.md"]
+  mem_update --> mem_write["write_long_term 写入 memory/MEMORY.md"]
+
+  mem_write --> session_done["更新 session.last_consolidated\nconsolidate 返回 True"]
+  mem_skip --> session_done
+  hist_summary --> session_done
+  lp_add --> session_done
+  lp_ignore --> session_done
+  skip_consol --> session_done
+
+  classDef dim fill:#f2f2f2,stroke:#c8c8c8,color:#666;
+```

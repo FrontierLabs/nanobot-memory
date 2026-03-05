@@ -40,7 +40,8 @@
         "enhancedmem": {
           "memoryMdMaxChars": 6000,
           "memoryConsolidateIntervalMessages": null,
-          "memoryConsolidateAfterTurn": false
+          "memoryConsolidateAfterTurn": false,
+          "lifeProfileMaxItems": 80
         }
       }
     }
@@ -51,6 +52,7 @@
 - `memory.backend`: `"default"`（默认）或 `"enhancedmem"`。
 - `memory.enhancedmem.memoryConsolidateIntervalMessages`: 设为数字（如 `10`）则每 10 条消息尝试巩固；`null` 则使用 `memoryWindow`。
 - `memory.enhancedmem.memoryConsolidateAfterTurn`: `true` 时每轮对话后尝试巩固（更细粒度）。
+- `memory.enhancedmem.lifeProfileMaxItems`: Life Profile（显性信息 + 隐性特质）条数上限，默认 80；超限时触发 LLM 压缩。
 
 Prompt 使用中文（边界检测、Episode、EventLog、Foresight、Life Profile 等）。
 

@@ -223,6 +223,7 @@ class EnhancedMemConfig(Base):
     memory_md_max_chars: int = 6000  # Max chars for MEMORY.md (compression triggered when exceeded)
     memory_consolidate_interval_messages: int | None = None  # Consolidate every N messages (None = use memory_window)
     memory_consolidate_after_turn: bool = False  # Light consolidate after each turn
+    life_profile_max_items: int = 80  # Life Profile (explicit_info + implicit_traits) item cap; triggers LLM compact when exceeded
     cluster_similarity_threshold: float = 0.75  # Min cosine similarity to join cluster
     cluster_max_time_gap_days: int = 7  # Max days between memcells in same cluster
 

@@ -2,7 +2,7 @@
 
 - 未实现
     - [ ] SOUL.md更新尚未实现，目前实现了对USER.md的更新 
-    - [ ] life profile如果预测为update delete当前没有实现, nanobot-memory/blob/main/nanobot/agent/enhancedmem/store.py#L572-L573
+    - [x] life profile如果预测为update delete当前没有实现, nanobot-memory/blob/main/nanobot/agent/enhancedmem/store.py#L572-L573 （已在 commit abc1075 中实现）
     - [ ] 可供测试长记忆的接口方案，可以模拟运行context，只运行memory
 - Memory的更新相关
     - [ ] 推断的更新：推断明显会因为一些新发生的事情变得提前失效，缺少复核（复核时机怎么设计？）

@@ -90,56 +90,56 @@ Prompt 使用中文（边界检测、Episode、EventLog、Foresight、Life Profi
 flowchart TD
   user_msg["用户发送消息"] --> proc_msg["AgentLoop._process_message"]
 
-  proc_msg --> thresh{"未整合消息数是否达到阈值？\nunconsolidated >= _consolidate_threshold"}
-  thresh -->|否| normal_reply["正常对话流程\n不触发记忆整合"]:::dim
-  thresh -->|是| call_consol["_consolidate_memory(session,\npending_message=当前用户消息)"]
+  proc_msg --> thresh{"未整合消息数是否达到阈值？ <br> unconsolidated >= _consolidate_threshold"}
+  thresh -->|否| normal_reply["正常对话流程 <br> 不触发记忆整合"]:::dim
+  thresh -->|是| call_consol["_consolidate_memory(session, <br> pending_message=当前用户消息)"]
   call_consol --> em_consol["EnhancedMemStore.consolidate(session, provider, model)"]
 
-  subgraph CONSOLIDATE_FLOW["EnhancedMemStore.consolidate"]
+  subgraph CONSOLIDATE_FLOW["EnhancedMemStore.consolidate 编排"]
     em_consol --> arch_check{"archive_all ?"}
-    arch_check -->|是| arch_case["归档模式（例如 /new）\nshould_end=true\ntopic_summary='会话归档'"]
-    arch_check -->|否| bd_call["_detect_boundary(history_msgs, new_msgs)"]
+    arch_check -->|是| arch_case["归档模式（例如 /new） <br> should_end=true <br> topic_summary='会话归档'"]
+    arch_check -->|否| bd_call["boundary.detect_boundary <br> (history_msgs, new_msgs)"]
 
     bd_call --> bd_skip{"should_end 为 false 且非归档？"}
-    bd_skip -->|是| skip_consol["跳过本次 consolidate\n等待更多消息或主题变化"]:::dim
-    bd_skip -->|否| memcell_create["_create_memcell(old_messages, topic_summary)"]
+    bd_skip -->|是| skip_consol["跳过本次 consolidate <br> 等待更多消息或主题变化"]:::dim
+    bd_skip -->|否| memcell_create["memcell.create_memcell <br> (old_messages, topic_summary)"]
     arch_case --> memcell_create
   end
 
-  memcell_create --> write_memcell["_append_memcell\n追加到 memory/memcells.jsonl"]
-  write_memcell --> cluster["assign_memcell_to_cluster\n读写 memory/cluster_state.json"]
+  memcell_create --> write_memcell["memcell.append_memcell <br> 追加到 memory/memcells.jsonl"]
+  write_memcell --> cluster["cluster.assign_memcell_to_cluster <br> 读写 memory/cluster_state.json"]
 
-  memcell_create --> ep_extract["_extract_episode\nLLM 生成 Episode"]
+  memcell_create --> ep_extract["memcell.extract_episode <br> LLM 生成 Episode"]
   ep_extract --> ep_write["追加到 memory/episodes.jsonl"]
 
-  memcell_create --> ev_extract["_extract_eventlog\nLLM 提取 atomic facts"]
-  ev_extract --> ev_append["对每条 fact 调用 append_history\n写入 memory/HISTORY.YYMMDD.md"]
+  memcell_create --> ev_extract["memcell.extract_eventlog <br> LLM 提取 atomic facts"]
+  ev_extract --> ev_append["对每条 fact 调用 append_history <br> 写入 memory/HISTORY.YYMMDD.md"]
 
-  memcell_create --> foresight_extract["_extract_foresight\nLLM 生成 foresight"]
+  memcell_create --> foresight_extract["memcell.extract_foresight <br> LLM 生成 foresight"]
   foresight_extract --> foresight_write["追加到 memory/foresights.jsonl"]
 
-  memcell_create --> life_profile["_extract_life_profile\nLLM 返回 operations"]
+  memcell_create --> life_profile["life_profile.extract_and_apply_life_profile <br> LLM 返回 operations"]
   life_profile --> read_user["读取 USER.md（不存在则视为空）"]
-  read_user --> parse_profile["解析 Life Profile 区块\n拆分 explicit_info / implicit_traits"]
+  read_user --> parse_profile["解析 Life Profile 区块 <br> 拆分 explicit_info / implicit_traits"]
   parse_profile --> lp_ops{"遍历 operations（add/update/delete/none）"}
-  lp_ops -->|add / update / delete| lp_apply["更新 explicit_info / implicit_traits\n并追加溯源 '时间|event_id'"]
+  lp_ops -->|add / update / delete| lp_apply["更新 explicit_info / implicit_traits <br> 并追加溯源 '时间|event_id'"]
   lp_ops -->|none| lp_none["本轮对话不修改画像"]:::dim
-  lp_apply --> lp_capacity{"画像条目是否超过\nlifeProfileMaxItems？"}
-  lp_capacity -->|否| lp_skip_compact["条数未超限\n跳过压缩"]:::dim
-  lp_capacity -->|是| lp_compact["调用 PROFILE_LIFE_COMPACT_PROMPT\nLLM 压缩画像"]
-  lp_compact --> write_user["渲染并写回 USER.md\n更新 Life Profile 区块"]
+  lp_apply --> lp_capacity{"画像条目是否超过 <br> lifeProfileMaxItems？"}
+  lp_capacity -->|否| lp_skip_compact["条数未超限 <br> 跳过压缩"]:::dim
+  lp_capacity -->|是| lp_compact["调用 PROFILE_LIFE_COMPACT_PROMPT <br> LLM 压缩画像"]
+  lp_compact --> write_user["渲染并写回 USER.md <br> 更新 Life Profile 区块"]
   lp_skip_compact --> write_user
 
   memcell_create --> topic_summary_step["生成 history_entry = [ts] topic_summary"]
-  topic_summary_step --> hist_summary["append_history(history_entry)\n写入 memory/HISTORY.YYMMDD.md"]
+  topic_summary_step --> hist_summary["store.append_history(history_entry) <br> 写入 memory/HISTORY.YYMMDD.md"]
 
-  topic_summary_step --> read_memory["read_long_term 读取 memory/MEMORY.md"]
-  read_memory --> mem_check{"topic_summary 可写入 MEMORY.md？\n非空 且 不等于 会话归档 且 不重复"}
+  topic_summary_step --> read_memory["memory_md.read_long_term <br> 读取 memory/MEMORY.md"]
+  read_memory --> mem_check{"topic_summary 可写入 MEMORY.md？ <br> 非空 且 不等于 会话归档 且 不重复"}
   mem_check -->|否| mem_skip["不修改 MEMORY.md"]:::dim
-  mem_check -->|是| mem_update["追加 '- ts: topic_summary'\n如超限则触发压缩\n然后写回 MEMORY.md"]
-  mem_update --> mem_write["write_long_term 写入 memory/MEMORY.md"]
+  mem_check -->|是| mem_update["memory_md.append_topic_summary <br> 追加 '- ts: topic_summary' <br> 如超限则 LLM 压缩后写回"]
+  mem_update --> mem_write["memory_md.write_long_term <br> 写入 memory/MEMORY.md"]
 
-  mem_write --> session_done["更新 session.last_consolidated\nconsolidate 返回 True"]
+  mem_write --> session_done["更新 session.last_consolidated <br> consolidate 返回 True"]
   mem_skip --> session_done
   hist_summary --> session_done
   write_user --> session_done

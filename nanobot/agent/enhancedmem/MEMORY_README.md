@@ -148,3 +148,72 @@ flowchart TD
 
   classDef dim fill:#f2f2f2,stroke:#c8c8c8,color:#666;
 ```
+
+## 记忆检索与注入系统上下文流程图
+
+每次用户发送消息时，AgentLoop 会调用 `ContextBuilder.build_messages` 构建发送给 LLM 的完整消息列表。其中系统提示（system prompt）通过 `build_system_prompt(query=current_message)` 生成，`query` 即为当前用户消息内容，用于按关键词检索相关记忆。
+
+```mermaid
+flowchart TD
+  user_msg["用户发送消息"] --> proc_msg["AgentLoop._process_message"]
+  proc_msg --> build_msgs["context.build_messages<br>(history, current_message=msg.content)"]
+
+  build_msgs --> sys_prompt["build_system_prompt<br>(skill_names, query=current_message)"]
+
+  subgraph BUILD_SYSTEM_PROMPT["build_system_prompt 组装"]
+    sys_prompt --> part_identity["1. _get_identity()<br>身份与工作区说明"]
+    part_identity --> part_bootstrap["2. _load_bootstrap_files()<br>AGENTS.md, SOUL.md, USER.md 等"]
+    part_bootstrap --> part_memory["3. memory.get_memory_context(query=query)<br>记忆检索与组装"]
+    part_memory --> part_skills["4. Skills 区块"]
+    part_skills --> join_parts["用 '---' 拼接各区块<br>得到完整 system prompt"]
+  end
+
+  subgraph GET_MEMORY_CONTEXT["EnhancedMemStore.get_memory_context(query)"]
+    part_memory --> read_lt["read_long_term()<br>读取 memory/MEMORY.md"]
+    read_lt --> parts_init["parts = []"]
+    parts_init --> add_lt{"MEMORY.md 非空？"}
+    add_lt -->|是| append_lt["parts.append 添加 Long-term Memory 区块"]
+    add_lt -->|否| retrieve_ep["_retrieve_episodes(query, limit=5)"]
+
+    append_lt --> retrieve_ep
+
+    retrieve_ep --> ep_source{"query 存在且 len≥2 ?"}
+    ep_source -->|是| ep_keyword["按 query 分词，关键词匹配 episodes.jsonl<br>title/summary/content 命中计分<br>按分数排序取 top 5"]
+    ep_source -->|否| ep_recent["取最近 5 条 Episode<br>reversed(episodes)[-5:]"]
+
+    ep_keyword --> ep_has{"有命中？"}
+    ep_has -->|否| ep_recent
+    ep_has -->|是| ep_format["格式化为 '**title** (date): summary'"]
+
+    ep_recent --> ep_format
+    ep_format --> append_ep["parts.append 添加 Episodes 区块"]
+
+    append_ep --> hist_check{"query 存在且 len≥2 ?"}
+    hist_check -->|否| assemble["跳过 History 检索"]:::dim
+    hist_check -->|是| retrieve_hist["_retrieve_history(query, limit=5)"]
+
+    retrieve_hist --> hist_grep["遍历 memory/HISTORY.*.md（最近 14 天）<br>grep 关键词匹配，取前 5 条"]
+    hist_grep --> hist_has{"有命中？"}
+    hist_has -->|是| append_hist["parts.append 添加 Relevant History 区块"]
+    hist_has -->|否| assemble
+    append_hist --> assemble
+
+    assemble --> mem_return["return 各 parts 用双换行拼接"]
+  end
+
+  mem_return --> wrap_memory["ContextBuilder 包装为 # Memory 区块"]
+  wrap_memory --> join_parts
+
+  join_parts --> final_msgs["build_messages 返回<br>[system, ...history, runtime, user]"]
+  final_msgs --> llm_call["发送给 LLM 进行推理"]
+
+  classDef dim fill:#f2f2f2,stroke:#c8c8c8,color:#666;
+```
+
+**要点**：
+
+- **query 来源**：`query` 即当前用户消息 `msg.content`，在 `build_messages` 中传入 `build_system_prompt`。
+- **检索策略**：
+  - **Episode**：有 query 时按关键词匹配（title/summary/content），无 query 或无命中时取最近 5 条。
+  - **EventLog（History）**：仅当 query 存在且长度 ≥ 2 时，对 `HISTORY.YYMMDD.md` 做 grep 检索。
+- **注入位置**：检索结果作为 `# Memory` 区块，插入到 system prompt 的 identity、bootstrap 之后、skills 之前。

@@ -12,7 +12,7 @@
   </p>
 </div>
 
-> **nanobot-memory fork**：在 nanobot 基础上增加可选 [EnhancedMem 长期记忆](MEMORY_README.md)，与默认记忆并存、可配置切换。
+> **nanobot-memory fork**：在 nanobot 基础上增加可选 [EnhancedMem 长期记忆](nanobot/agent/enhancedmem/MEMORY_README.md)，与默认记忆并存、可配置切换。
 
 🐈 **nanobot** is an **ultra-lightweight** personal AI assistant inspired by [OpenClaw](https://github.com/openclaw/openclaw) 
 
@@ -653,7 +653,7 @@ Simply send the command above to your nanobot (via CLI or any chat channel), and
 
 Config file: `~/.nanobot/config.json`
 
-Memory backend (EnhancedMem): see [MEMORY_README.md](MEMORY_README.md).
+Memory backend (EnhancedMem): see [MEMORY_README.md](nanobot/agent/enhancedmem/MEMORY_README.md).
 
 ### Providers
 

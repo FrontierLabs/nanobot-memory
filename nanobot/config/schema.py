@@ -220,6 +220,7 @@ class ChannelsConfig(Base):
 class EnhancedMemConfig(Base):
     """EnhancedMem memory backend configuration."""
 
+    retrieve_method: Literal["lightest", "bm25"] = "lightest"  # search strategy for episodes/history
     memory_md_max_chars: int = 6000  # Max chars for MEMORY.md (compression triggered when exceeded)
     memory_consolidate_interval_messages: int | None = None  # Consolidate every N messages (None = use memory_window)
     memory_consolidate_after_turn: bool = False  # Light consolidate after each turn

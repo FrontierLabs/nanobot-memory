@@ -21,6 +21,7 @@ from nanobot.agent.enhancedmem.memcell import (
     format_conversation_for_extractors,
 )
 from nanobot.agent.enhancedmem.memory_md import MemoryMdManager
+from nanobot.agent.enhancedmem.search import extract_episode_text, search
 from nanobot.agent.enhancedmem.utils import history_path_for_date
 from nanobot.utils.helpers import ensure_dir
 
@@ -52,6 +53,7 @@ class EnhancedMemStore:
             max_chars=self._memory_md_max_chars,
             config=config,
         )
+        self._retrieve_method = getattr(config, "retrieve_method", "lightest")
 
     def read_long_term(self) -> str:
         return self._memory_md.read_long_term()
@@ -109,26 +111,42 @@ class EnhancedMemStore:
         return "\n\n".join(parts)
 
     def _retrieve_history(self, query: str, limit: int = 5) -> list[str]:
-        """Retrieve EventLog lines matching query keywords from HISTORY.YYMMDD.md."""
-        terms = [t for t in query.split() if len(t) >= 2]
-        if not terms:
-            return []
-        hits = []
+        """Retrieve EventLog lines matching query from HISTORY.YYMMDD.md via unified search."""
+        documents: list[dict] = []
         for path in sorted(self.memory_dir.glob("HISTORY.*.md"), reverse=True)[:14]:
             try:
                 text = path.read_text(encoding="utf-8")
                 logger.debug("EnhancedMem [file READ] {}: {} lines (retrieve_history)", path.name, len(text.splitlines()))
-                for line in text.splitlines():
-                    if any(t in line for t in terms):
-                        hits.append(line.strip())
-                        if len(hits) >= limit:
-                            return hits
+                # sort_key: newer files first when score ties (invert YYMMDD)
+                try:
+                    yymmdd = int(path.stem.split(".")[-1])
+                    inv = 999999 - yymmdd
+                except (ValueError, IndexError):
+                    inv = 0
+                for idx, line in enumerate(text.splitlines()):
+                    line = line.strip()
+                    if line:
+                        documents.append({
+                            "line": line,
+                            "path": path,
+                            "sort_key": f"{inv:06d}_{idx:06d}",
+                        })
             except OSError:
                 continue
-        return hits
+        if not documents:
+            return []
+        results = search(
+            query=query,
+            documents=documents,
+            limit=limit,
+            strategy=self._retrieve_method,
+            text_extractor=lambda d: d["line"],
+            sort_key_extractor=lambda d: d["sort_key"],
+        )
+        return [d["line"] for d, _ in results]
 
     def _retrieve_episodes(self, query: str | None = None, limit: int = 5) -> list[dict]:
-        """Retrieve episodes by keyword match with query, or recent N if no query/no matches."""
+        """Retrieve episodes by unified search with query, or recent N if no query."""
         if not self.episodes_file.exists():
             return []
         text = self.episodes_file.read_text(encoding="utf-8")
@@ -146,21 +164,18 @@ class EnhancedMemStore:
         if not episodes:
             return []
 
-        terms = []
-        if query and len(query.strip()) >= 2:
-            terms = [t for t in query.strip().split() if len(t) >= 2]
-        if not terms:
+        if not query or len(query.strip()) < 2:
             return list(reversed(episodes))[-limit:]
 
-        def score(ep: dict) -> int:
-            text = " ".join(
-                str(ep.get(k, "")) for k in ("title", "summary", "content")
-            )
-            return sum(1 for t in terms if t in text)
-
-        scored = [(ep, score(ep)) for ep in episodes]
-        scored.sort(key=lambda x: (-x[1], x[0].get("timestamp", "") or ""))
-        chosen = [ep for ep, s in scored if s > 0][:limit]
+        results = search(
+            query=query.strip(),
+            documents=episodes,
+            limit=limit,
+            strategy=self._retrieve_method,
+            text_extractor=extract_episode_text,
+            sort_key_extractor=lambda ep: ep.get("timestamp", "") or "",
+        )
+        chosen = [ep for ep, _ in results]
         if not chosen:
             return list(reversed(episodes))[-limit:]
         return chosen

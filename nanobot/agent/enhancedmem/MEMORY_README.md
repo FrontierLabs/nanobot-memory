@@ -38,6 +38,7 @@
       "memory": {
         "backend": "enhancedmem",
         "enhancedmem": {
+          "retrieveMethod": "lightest",
           "memoryMdMaxChars": 6000,
           "memoryConsolidateIntervalMessages": null,
           "memoryConsolidateAfterTurn": false,
@@ -50,6 +51,7 @@
 ```
 
 - `memory.backend`: `"default"`（默认）或 `"enhancedmem"`。
+- `memory.enhancedmem.retrieveMethod`: `"lightest"`（字面匹配）或 `"bm25"`（BM25 检索）；`"bm25"` 需安装 `rank-bm25`、`jieba`、`nltk`。
 - `memory.enhancedmem.memoryConsolidateIntervalMessages`: 设为数字（如 `10`）则每 10 条消息尝试巩固；`null` 则使用 `memoryWindow`。
 - `memory.enhancedmem.memoryConsolidateAfterTurn`: `true` 时每轮对话后尝试巩固（更细粒度）。
 - `memory.enhancedmem.lifeProfileMaxItems`: Life Profile（显性信息 + 隐性特质）条数上限，默认 80；超限时触发 LLM 压缩。

@@ -54,6 +54,35 @@ class EnhancedMemStore:
             config=config,
         )
         self._retrieve_method = getattr(config, "retrieve_method", "lightest")
+        self._bm25_min_score_ratio = getattr(config, "bm25_min_score_ratio", 0.1)
+        self._bm25_min_score_absolute = getattr(config, "bm25_min_score_absolute", 0.01)
+        self._log_config(config)
+
+    def _log_config(self, config: Any) -> None:
+        """Log all resolved config at debug level."""
+        resolved: dict[str, Any] = {
+            "retrieve_method": self._retrieve_method,
+            "memory_md_max_chars": self._memory_md_max_chars,
+            "life_profile_max_items": self._life_profile_max_items,
+        }
+        if config is not None:
+            if hasattr(config, "model_dump"):
+                resolved.update(config.model_dump())
+            else:
+                for key in (
+                    "retrieve_method",
+                    "bm25_min_score_ratio",
+                    "bm25_min_score_absolute",
+                    "memory_md_max_chars",
+                    "memory_consolidate_interval_messages",
+                    "memory_consolidate_after_turn",
+                    "life_profile_max_items",
+                    "cluster_similarity_threshold",
+                    "cluster_max_time_gap_days",
+                ):
+                    if hasattr(config, key):
+                        resolved[key] = getattr(config, key)
+        logger.debug("EnhancedMemStore config: {}", resolved)
 
     def read_long_term(self) -> str:
         return self._memory_md.read_long_term()
@@ -142,6 +171,8 @@ class EnhancedMemStore:
             strategy=self._retrieve_method,
             text_extractor=lambda d: d["line"],
             sort_key_extractor=lambda d: d["sort_key"],
+            bm25_min_score_ratio=self._bm25_min_score_ratio,
+            bm25_min_score_absolute=self._bm25_min_score_absolute,
         )
         return [d["line"] for d, _ in results]
 
@@ -174,6 +205,8 @@ class EnhancedMemStore:
             strategy=self._retrieve_method,
             text_extractor=extract_episode_text,
             sort_key_extractor=lambda ep: ep.get("timestamp", "") or "",
+            bm25_min_score_ratio=self._bm25_min_score_ratio,
+            bm25_min_score_absolute=self._bm25_min_score_absolute,
         )
         chosen = [ep for ep, _ in results]
         if not chosen:

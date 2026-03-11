@@ -104,11 +104,16 @@ def search(
     strategy: Literal["lightest", "bm25"],
     text_extractor: Callable[[Any], str],
     sort_key_extractor: Callable[[Any], Any] | None = None,
+    *,
+    bm25_min_score_ratio: float = 0.1,
+    bm25_min_score_absolute: float = 0.01,
 ) -> list[tuple[Any, float]]:
     """
     Unified search over documents. Returns [(doc, score), ...] sorted by score desc.
     When strategy=lightest, only docs with score>0 are returned.
-    When strategy=bm25, all docs get a score; top limit by score.
+    When strategy=bm25, filters by relevance:
+      - If max_score < bm25_min_score_absolute: return [] (query unrelated to corpus).
+      - Else keep only results with score >= max_score * bm25_min_score_ratio.
     """
     if not query or not query.strip():
         return []
@@ -155,7 +160,21 @@ def search(
             return (-s, sk)
 
         scored.sort(key=key)
-        return scored[:limit]
+        if not scored:
+            return []
+        max_score = float(scored[0][1])
+        # max_score == 0: no term matched any doc -> unrelated
+        if max_score == 0:
+            return []
+        # max_score < 0: small corpus artifact (BM25 can be negative), return top N
+        if max_score < 0:
+            return scored[:limit]
+        # max_score > 0: apply relevance filters
+        if max_score < bm25_min_score_absolute:
+            return []
+        threshold = max(max_score * bm25_min_score_ratio, bm25_min_score_absolute)
+        filtered = [(d, s) for d, s in scored if float(s) >= threshold]
+        return filtered[:limit]
 
     logger.warning("Unknown search strategy: {}, falling back to lightest", strategy)
     return search(

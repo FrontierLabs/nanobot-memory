@@ -36,6 +36,16 @@ def create_memcell(messages: list[dict], summary: str) -> dict:
     except (ValueError, TypeError):
         dt = datetime.now()
 
+    sanitized_summary = summary or "对话片段"
+    # Internal chunking reasons are not useful to keep in long-term memory
+    # (they describe consolidation mechanics, not user knowledge).
+    if (
+        "强制切分" in sanitized_summary
+        or sanitized_summary in ("会话归档",)
+        or "达到 memory_window 上限" in sanitized_summary
+    ):
+        sanitized_summary = "对话片段"
+
     return {
         "event_id": str(uuid.uuid4()),
         "original_data": [
@@ -49,7 +59,7 @@ def create_memcell(messages: list[dict], summary: str) -> dict:
             if m.get("content")
         ],
         "timestamp": dt.isoformat(),
-        "summary": summary or "对话片段",
+        "summary": sanitized_summary,
         "participants": list({m.get("role", "user") for m in messages}),
         "type": "conversation",
     }

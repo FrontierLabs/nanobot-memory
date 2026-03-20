@@ -76,18 +76,33 @@ async def detect_boundary(
     provider: "LLMProvider",
     model: str,
     *,
+    memory_window: int | None = None,
     estimate_tokens_fn: Callable[[str], int] = estimate_tokens,
 ) -> tuple[bool, bool, str]:
     """Run LLM boundary detection. Returns (should_end, should_wait, topic_summary)."""
     if not new_msgs:
         return False, True, ""
 
+    # If memory_window is provided, scale the force-split thresholds using the
+    # same "messages<->tokens" ratio as the original HARD_* defaults.
+    effective_message_limit = HARD_MESSAGE_LIMIT
+    effective_token_limit = HARD_TOKEN_LIMIT
+    if memory_window is not None:
+        try:
+            mw = int(memory_window)
+        except (TypeError, ValueError):
+            mw = None
+        if mw is not None and mw > 0:
+            effective_message_limit = min(HARD_MESSAGE_LIMIT, mw)
+            tokens_per_message = HARD_TOKEN_LIMIT / HARD_MESSAGE_LIMIT
+            effective_token_limit = min(HARD_TOKEN_LIMIT, int(tokens_per_message * mw))
+
     total_tokens = estimate_total_tokens(
         history_msgs + new_msgs, estimate_tokens_fn=estimate_tokens_fn
     )
     total_messages = len(history_msgs) + len(new_msgs)
 
-    if total_tokens >= HARD_TOKEN_LIMIT or total_messages >= HARD_MESSAGE_LIMIT:
+    if total_tokens >= effective_token_limit or total_messages >= effective_message_limit:
         if len(history_msgs) >= 2:
             return True, False, "达到消息/Token 上限，强制切分"
 

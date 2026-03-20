@@ -253,12 +253,8 @@ class EnhancedMemStore:
             if len(session.messages) - session.last_consolidated <= 0:
                 return True
             old_messages = session.messages[session.last_consolidated:-keep_count]
-            if not old_messages:
+            if not old_messages or len(old_messages) < 2:
                 return True
-
-        if len(old_messages) < 2:
-            session.last_consolidated = 0 if archive_all else len(session.messages) - keep_count
-            return True
 
         try:
             if archive_all:
@@ -281,8 +277,26 @@ class EnhancedMemStore:
                         history_for_detect = []
                         new_for_detect = old_messages
                 should_end, should_wait, topic_summary = await boundary_mod.detect_boundary(
-                    history_for_detect, new_for_detect, provider, model
+                    history_for_detect,
+                    new_for_detect,
+                    provider,
+                    model,
+                    memory_window=memory_window,
                 )
+
+            # If we've reached the configured short-term context size, we should
+            # still consolidate even if the boundary detector returns should_end=false.
+            # This keeps memory writes aligned with memory_window semantics.
+            if (
+                not archive_all
+                and memory_window is not None
+                and memory_window > 0
+                and len(session.messages) >= memory_window
+            ):
+                should_end = True
+                should_wait = False
+                if not topic_summary:
+                    topic_summary = "达到 memory_window 上限，强制切分"
 
             if not should_end and not archive_all:
                 logger.debug("EnhancedMem boundary: should_end=false, skipping consolidate (wait for more or topic change)")

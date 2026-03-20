@@ -88,9 +88,10 @@ class EnhancedMemRunner:
             unconsolidated = len(self._session.messages) - self._session.last_consolidated
             if unconsolidated >= self._consolidate_threshold:
                 logger.debug(
-                    "EnhancedMemRunner ingest: unconsolidated={} >= threshold={}, running consolidate()",
+                    "EnhancedMemRunner ingest: unconsolidated={} >= threshold={}, running consolidate() with last_consolidated={}",
                     unconsolidated,
                     self._consolidate_threshold,
+                    self.session.last_consolidated
                 )
                 await self._store.consolidate(
                     self._session,
@@ -98,7 +99,7 @@ class EnhancedMemRunner:
                     self.model,
                     archive_all=False,
                     memory_window=self.memory_window,
-                    pending_user_message=None,
+                    pending_user_message=(msg if msg.role == "user" else None),
                 )
 
     async def finalize(self) -> None:

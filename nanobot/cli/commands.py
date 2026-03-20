@@ -273,21 +273,12 @@ def gateway(
     cron = CronService(cron_store_path)
 
     # Create agent with cron service
-    from nanobot.agent.memory_factory import make_memory_store
+    from nanobot.agent.memory_factory import resolve_memory_for_agent_loop
 
     defaults = config.agents.defaults
-    memory_store = make_memory_store(config.workspace_path, defaults)
-    consolidate_interval = None
-    consolidate_after_turn = False
-    if getattr(defaults.memory, "backend", "default") == "enhancedmem":
-        consolid_cfg = getattr(defaults.memory, "enhancedmem", None)
-        if consolid_cfg:
-            consolidate_interval = getattr(
-                consolid_cfg, "memory_consolidate_interval_messages", None
-            )
-            consolidate_after_turn = getattr(
-                consolid_cfg, "memory_consolidate_after_turn", False
-            )
+    memory_store, consolidate_interval, consolidate_after_turn = resolve_memory_for_agent_loop(
+        config.workspace_path, defaults
+    )
     agent = AgentLoop(
         bus=bus,
         provider=provider,
@@ -464,21 +455,12 @@ def agent(
     else:
         logger.disable("nanobot")
 
-    from nanobot.agent.memory_factory import make_memory_store
+    from nanobot.agent.memory_factory import resolve_memory_for_agent_loop
 
     defaults = config.agents.defaults
-    memory_store = make_memory_store(config.workspace_path, defaults)
-    consolidate_interval = None
-    consolidate_after_turn = False
-    if getattr(defaults.memory, "backend", "default") == "enhancedmem":
-        consolid_cfg = getattr(defaults.memory, "enhancedmem", None)
-        if consolid_cfg:
-            consolidate_interval = getattr(
-                consolid_cfg, "memory_consolidate_interval_messages", None
-            )
-            consolidate_after_turn = getattr(
-                consolid_cfg, "memory_consolidate_after_turn", False
-            )
+    memory_store, consolidate_interval, consolidate_after_turn = resolve_memory_for_agent_loop(
+        config.workspace_path, defaults
+    )
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,
@@ -978,21 +960,12 @@ def cron_run(
     provider = _make_provider(config)
     bus = MessageBus()
 
-    from nanobot.agent.memory_factory import make_memory_store
+    from nanobot.agent.memory_factory import resolve_memory_for_agent_loop
 
     defaults = config.agents.defaults
-    memory_store = make_memory_store(config.workspace_path, defaults)
-    consolidate_interval = None
-    consolidate_after_turn = False
-    if getattr(defaults.memory, "backend", "default") == "enhancedmem":
-        consolid_cfg = getattr(defaults.memory, "enhancedmem", None)
-        if consolid_cfg:
-            consolidate_interval = getattr(
-                consolid_cfg, "memory_consolidate_interval_messages", None
-            )
-            consolidate_after_turn = getattr(
-                consolid_cfg, "memory_consolidate_after_turn", False
-            )
+    memory_store, consolidate_interval, consolidate_after_turn = resolve_memory_for_agent_loop(
+        config.workspace_path, defaults
+    )
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,

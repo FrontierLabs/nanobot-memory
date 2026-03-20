@@ -82,10 +82,15 @@ Prompt 使用中文（边界检测、Episode、EventLog、Foresight、Life Profi
 
 3. **CLI（commands）**  
    - 创建 AgentLoop 前用 `defaults = config.agents.defaults`，传参时统一用 `defaults.*`，并**显式传入上游新增项**（如 `reasoning_effort=defaults.reasoning_effort`），避免与上游改成 `config.agents.defaults.xxx` 的写法冲突，同时保证新参数不遗漏。  
-   - **当前实现**：两处创建 AgentLoop 的代码均使用 `defaults` 并显式传入 `reasoning_effort=defaults.reasoning_effort` 及本 fork 的 `memory_store`、`memory_consolidate_interval`、`memory_consolidate_after_turn`。
+   - **当前实现**：gateway / `nanobot agent` / `cron run` 等路径通过 `resolve_memory_for_agent_loop(workspace, defaults)` **一次返回** `memory_store`、`memory_consolidate_interval`、`memory_consolidate_after_turn`，避免在多处重复 `if backend == enhancedmem`。
 
 4. **长期策略**  
    - 若本 fork 的 memory 逻辑继续膨胀，可考虑把 **EnhancedMem 的组装与配置** 抽到独立模块（例如 `nanobot/agent/enhancedmem/bootstrap.py` 或 `cli/memory_runner.py`），在 `commands.py` 里只保留一两处「若启用 enhancedmem 则调用该模块」，减少与上游对同一行、同一函数的修改。
+
+5. **与 OpenClaw「hook」的关系（是否要抄一套？）**  
+   - OpenClaw 的 hook 解决的是：**多个插件在会话生命周期各点订阅事件**（如 `agent_end`、`before_compaction`）。  
+   - 本 fork **换记忆后端**这件事，用 **`MemoryBackend` 协议 + `make_memory_store` / `resolve_memory_for_agent_loop`** 已经够用，相当于「memory 槽位」只选一个实现，**不必**为后端切换再抄全套 hook。  
+   - 只有当你需要 **与具体后端无关的横切逻辑**（观测、审计、在 consolidate 之外再写一份到外部系统、多个订阅者）时，才值得在 `AgentLoop` 里加轻量 `emit("after_turn", ...)` 或类似注册表；那种改动应集中在一两个小函数里，避免散落在 `commands.py`。
 
 
 ## 记忆相关当前流程图

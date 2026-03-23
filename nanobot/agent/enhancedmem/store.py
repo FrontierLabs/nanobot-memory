@@ -354,7 +354,7 @@ class EnhancedMemStore:
             )
 
             memory_topic_summary = topic_summary
-            if not archive_all and (
+            if archive_all and (
                 not memory_topic_summary or "强制切分" in (memory_topic_summary or "")
             ):
                 if episode:
@@ -374,7 +374,7 @@ class EnhancedMemStore:
                 memory_topic_summary = "对话片段" if not forced_chunking_reason else ""
 
             ts = memcell.get("timestamp", datetime.now().isoformat())[:16]
-            if memory_topic_summary:
+            if memory_topic_summary and memory_topic_summary != "会话归档":
                 history_entry = f"[{ts}] {memory_topic_summary}"
                 self.append_history(history_entry)
 

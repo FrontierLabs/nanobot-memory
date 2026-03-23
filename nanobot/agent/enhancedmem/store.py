@@ -148,7 +148,6 @@ class EnhancedMemStore:
         for path in sorted(self.memory_dir.glob("HISTORY.*.md"), reverse=True)[:14]:
             try:
                 text = path.read_text(encoding="utf-8")
-                logger.debug("EnhancedMem [file READ] {}: {} lines (retrieve_history)", path.name, len(text.splitlines()))
                 # sort_key: newer files first when score ties (invert YYMMDD)
                 try:
                     yymmdd = int(path.stem.split(".")[-1])
@@ -185,7 +184,6 @@ class EnhancedMemStore:
             return []
         text = self.episodes_file.read_text(encoding="utf-8")
         lines = text.strip().splitlines()
-        logger.debug("EnhancedMem [file READ] episodes.jsonl: {} lines (retrieve_episodes)", len(lines))
         episodes = []
         for line in lines:
             if not line.strip():

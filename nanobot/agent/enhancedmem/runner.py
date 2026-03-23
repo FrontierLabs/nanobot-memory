@@ -92,6 +92,21 @@ class EnhancedMemRunner:
     def session(self) -> Session:
         return self._session
 
+    def _load_profile_sections(self) -> str:
+        """Load optional profile bootstrap files for retrieval context."""
+        parts: list[str] = []
+        for filename in ("USER.md", "IDENTITY.md"):
+            file_path = self.workspace / filename
+            if not file_path.exists():
+                continue
+            try:
+                content = file_path.read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+            if content:
+                parts.append(f"## {filename}\n\n{content}")
+        return "\n\n".join(parts)
+
     async def _archive_unconsolidated_then_clear(self) -> None:
         """Match AgentLoop ``/new``: full-archive unconsolidated tail, then clear session."""
         snapshot = self._session.messages[self._session.last_consolidated :]
@@ -170,7 +185,18 @@ class EnhancedMemRunner:
             pending_user_message=None,
         )
 
-    def get_memory_context(self, query: str | None = None) -> str:
-        """Return the composed memory context for a query."""
-        return self._store.get_memory_context(query=query)
+    def get_memory_context(
+        self, query: str | None = None, use_profiles: bool = False
+    ) -> str:
+        """Return composed memory context; optionally include USER/IDENTITY profiles."""
+        memory_context = self._store.get_memory_context(query=query)
+        if not use_profiles:
+            return memory_context
+
+        profile_context = self._load_profile_sections()
+        if memory_context and profile_context:
+            return f"{profile_context}\n\n{memory_context}"
+        if profile_context:
+            return profile_context
+        return memory_context
 

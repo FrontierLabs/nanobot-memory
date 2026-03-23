@@ -128,10 +128,6 @@ async def detect_boundary(
         try:
             response = await provider.chat(
                 messages=[
-                    {
-                        "role": "system",
-                        "content": "你是一名对话情节边界分析专家。仅返回JSON，不要其他说明。",
-                    },
                     {"role": "user", "content": prompt},
                 ],
                 tools=None,

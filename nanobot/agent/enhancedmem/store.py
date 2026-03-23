@@ -353,22 +353,17 @@ class EnhancedMemStore:
                 bool(topic_summary) and ("强制切分" in topic_summary or "会话归档" in topic_summary)
             ) or topic_summary == ""
 
-            memory_topic_summary = topic_summary
-            if forced_chunked and episode:
-                memory_topic_summary = (
-                    episode.get("summary")
-                    or episode.get("title")
-                    or episode.get("content")
-                    or memory_topic_summary
-                ).strip()
-            elif forced_chunked:
-                memory_topic_summary = ""
-
-            if memory_topic_summary:
+            if not forced_chunked or episode:
+                memory_topic_summary = topic_summary
+                if forced_chunked and episode:
+                    memory_topic_summary = (
+                        episode.get("summary")
+                        or episode.get("title")
+                        or episode.get("content")
+                        or memory_topic_summary
+                    ).strip()
+            
                 ts = memcell.get("timestamp", datetime.now().isoformat())[:16]
-
-                history_entry = f"[{ts}] {memory_topic_summary}"
-                self.append_history(history_entry)
 
                 await self._memory_md.append_topic_summary(
                     ts,

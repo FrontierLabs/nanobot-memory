@@ -90,19 +90,22 @@ class EnhancedMemStore:
     def write_long_term(self, content: str) -> None:
         self._memory_md.write_long_term(content)
 
-    def append_history(self, entry: str) -> None:
+    def append_history(self, entries: list[str]) -> None:
         """Append to HISTORY.YYMMDD.md for the date in entry, or today if no timestamp."""
         dt = datetime.now()
-        if entry.strip().startswith("["):
-            try:
-                part = entry.strip()[1:11]  # [YYYY-MM-DD
-                dt = datetime.strptime(part, "%Y-%m-%d")
-            except ValueError:
-                pass
-        path = history_path_for_date(self.memory_dir, dt)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(entry.rstrip() + "\n\n")
-        logger.debug("EnhancedMem [file APPEND] {}: {} chars", path.name, len(entry))
+        lens_of_appended_entries = 0
+        for entry in entries:
+            if entry.strip().startswith("["):
+                try:
+                    part = entry.strip()[1:11]  # [YYYY-MM-DD
+                    dt = datetime.strptime(part, "%Y-%m-%d")
+                except ValueError:
+                    pass
+            path = history_path_for_date(self.memory_dir, dt)
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(entry.rstrip() + "\n\n")
+                lens_of_appended_entries += len(entry)
+        logger.debug("EnhancedMem [file APPEND] {}: {} chars", path.name, lens_of_appended_entries)
 
     def get_memory_context(self, query: str | None = None) -> str:
         """Build memory context from MEMORY.md + retrieved episodes/events (by query or recent)."""

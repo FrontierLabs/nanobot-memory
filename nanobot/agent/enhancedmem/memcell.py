@@ -157,6 +157,7 @@ async def extract_eventlog(
         )
         text = (resp.content or "").strip()
         m = re.search(r"\{[\s\S]*\}", text)
+        write_out_facts = []
         if m:
             try:
                 data = json.loads(m.group())
@@ -185,9 +186,12 @@ async def extract_eventlog(
                 evt_time = ts[:16]
             for fact in facts:
                 if isinstance(fact, str) and fact.strip():
-                    append_history(f"[{evt_time}] {fact.strip()}")
+                    write_out_facts.append(f"[{evt_time}] {fact.strip()}")
     except Exception as e:
         logger.warning("EventLog extraction failed: {}", e)
+
+    if write_out_facts:
+        append_history(write_out_facts)
 
 
 async def extract_foresight(

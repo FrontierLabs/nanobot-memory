@@ -220,14 +220,16 @@ async def extract_foresight(
             if not isinstance(items, list):
                 items = []
             foresights_file.parent.mkdir(parents=True, exist_ok=True)
+            __flush_out_count = 0
             for item in items:
                 if isinstance(item, dict):
                     item["event_id"] = memcell.get("event_id")
                     with open(foresights_file, "a", encoding="utf-8") as f:
                         f.write(json.dumps(item, ensure_ascii=False) + "\n")
-                    logger.debug(
-                        "EnhancedMem [file APPEND] foresights.jsonl: event_id={}",
-                        memcell.get("event_id", "?"),
-                    )
+                    __flush_out_count += 1
+            logger.debug(
+                "EnhancedMem [file APPEND] foresights.jsonl with {} lines: event_id={}",
+                __flush_out_count, memcell.get("event_id", "?"),
+            )
     except Exception as e:
         logger.warning("Foresight extraction failed: {}", e)

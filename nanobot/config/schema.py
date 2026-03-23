@@ -225,7 +225,9 @@ class EnhancedMemConfig(Base):
     bm25_min_score_absolute: float = 0.01  # BM25: if max_score < this, return empty (query unrelated)
     memory_md_max_chars: int = 6000  # Max chars for MEMORY.md (compression triggered when exceeded)
     memory_consolidate_interval_messages: int | None = None  # Consolidate every N messages (None = use memory_window)
-    memory_consolidate_after_turn: bool = False  # Light consolidate after each turn
+    # Start boundary detection after N (turns/messages) accumulate.
+    # 0 (or unset) => disable early boundary detection (same as historical `false`).
+    memory_consolidate_after_turn: int = 0
     life_profile_max_items: int = 80  # Life Profile (explicit_info + implicit_traits) item cap; triggers LLM compact when exceeded
     cluster_similarity_threshold: float = 0.75  # Min cosine similarity to join cluster
     cluster_max_time_gap_days: int = 7  # Max days between memcells in same cluster

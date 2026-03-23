@@ -260,7 +260,8 @@ class EnhancedMemStore:
             if archive_all:
                 should_end, should_wait, topic_summary = True, False, "会话归档"
             else:
-                if pending_user_message is not None and hasattr(pending_user_message, "content"):
+                pending_used = pending_user_message is not None and hasattr(pending_user_message, "content")
+                if pending_used:
                     ts = getattr(pending_user_message, "timestamp", None) or datetime.now()
                     ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
                     pending_dict = {
@@ -276,6 +277,28 @@ class EnhancedMemStore:
                     if not history_for_detect:
                         history_for_detect = []
                         new_for_detect = old_messages
+
+                # Align debug numbers with Runner's "unconsolidated" to validate
+                # the slice math: old_messages -> history_for_detect/new_for_detect.
+                keep_count_dbg = memory_window // 2 if memory_window is not None else None
+                unconsolidated_dbg = (
+                    len(session.messages) - session.last_consolidated
+                    if hasattr(session, "last_consolidated")
+                    else None
+                )
+                logger.debug(
+                    "EnhancedMem boundary inputs: total_msgs={}, last_consolidated={}, unconsolidated={}, memory_window={}, keep_count={}, pending_used={}, old_messages={}, history_for_detect={}, new_for_detect={}",
+                    len(session.messages),
+                    session.last_consolidated,
+                    unconsolidated_dbg,
+                    memory_window,
+                    keep_count_dbg,
+                    pending_used,
+                    len(old_messages),
+                    len(history_for_detect),
+                    len(new_for_detect),
+                )
+
                 should_end, should_wait, topic_summary = await boundary_mod.detect_boundary(
                     history_for_detect,
                     new_for_detect,

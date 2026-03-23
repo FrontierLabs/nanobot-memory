@@ -58,7 +58,7 @@ class AgentLoop:
         max_tokens: int = 4096,
         memory_window: int = 100,
         memory_consolidate_interval: int | None = None,
-        memory_consolidate_after_turn: bool = False,
+        memory_consolidate_after_turn: int = 0,
         reasoning_effort: str | None = None,
         brave_api_key: str | None = None,
         web_proxy: str | None = None,
@@ -80,13 +80,21 @@ class AgentLoop:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.memory_window = memory_window
-        # When memory_consolidate_after_turn: use low threshold (6) so boundary detection runs every ~2-3 turns
+        # When memory_consolidate_after_turn: start boundary detection after N turns.
+        # 0 disables early boundary detection => use `memory_window`.
         if memory_consolidate_interval is not None:
             self._consolidate_threshold = memory_consolidate_interval
-        elif memory_consolidate_after_turn:
-            self._consolidate_threshold = min(6, memory_window)
         else:
-            self._consolidate_threshold = memory_window
+            # Legacy support: if callers still pass `true`, coerce to the historical
+            # "enhanced boundary detection" value (~10) rather than `True -> 1`.
+            if isinstance(memory_consolidate_after_turn, bool):
+                after_turn_n = 10 if memory_consolidate_after_turn else 0
+            else:
+                after_turn_n = int(memory_consolidate_after_turn or 0)
+
+            self._consolidate_threshold = (
+                min(after_turn_n, memory_window) if after_turn_n > 0 else memory_window
+            )
         self.reasoning_effort = reasoning_effort
         self.brave_api_key = brave_api_key
         self.web_proxy = web_proxy

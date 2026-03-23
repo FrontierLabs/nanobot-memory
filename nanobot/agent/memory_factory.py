@@ -35,7 +35,7 @@ def make_memory_store(
 def resolve_memory_for_agent_loop(
     workspace: Path,
     agent_defaults: AgentDefaults,
-) -> tuple[MemoryBackend, int | None, bool]:
+) -> tuple[MemoryBackend, int | None, int]:
     """Build `AgentLoop` memory args in one place (backend + EnhancedMem consolidate knobs).
 
     Keeps CLI/gateway/cron paths aligned without duplicating `if enhancedmem` blocks.
@@ -46,7 +46,7 @@ def resolve_memory_for_agent_loop(
     store = make_memory_store(workspace, agent_defaults)
     mem = agent_defaults.memory
     if mem.backend != "enhancedmem":
-        return store, None, False
+        return store, None, 0
     c = mem.enhancedmem
     return (
         store,

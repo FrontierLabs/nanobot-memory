@@ -365,10 +365,11 @@ class EnhancedMemStore:
                 memory_topic_summary = ""
 
             if memory_topic_summary:
+                ts = memcell.get("timestamp", datetime.now().isoformat())[:16]
+
                 history_entry = f"[{ts}] {memory_topic_summary}"
                 self.append_history(history_entry)
 
-                ts = memcell.get("timestamp", datetime.now().isoformat())[:16]
                 await self._memory_md.append_topic_summary(
                     ts,
                     memory_topic_summary,

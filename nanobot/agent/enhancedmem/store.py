@@ -95,7 +95,7 @@ class EnhancedMemStore:
         dt = datetime.now()
         if entry.strip().startswith("["):
             try:
-                part = entry.strip()[1:10]  # [YYYY-MM-DD
+                part = entry.strip()[1:11]  # [YYYY-MM-DD
                 dt = datetime.strptime(part, "%Y-%m-%d")
             except ValueError:
                 pass
@@ -346,45 +346,36 @@ class EnhancedMemStore:
                 max_items=self._life_profile_max_items,
             )
 
-            # If boundary detection produced a "forced reason" (or empty) topic_summary,
+            # If archiv all or boundary detection produced a "forced reason" (or empty) topic_summary,
             # prefer Episode's semantic summary/title to avoid polluting MEMORY.md with
             # internal chunking reasons like "达到 memory_window 上限，强制切分".
-            forced_chunking_reason = (
-                (not archive_all) and bool(topic_summary) and ("强制切分" in topic_summary)
-            )
+            forced_chunked = archive_all or (
+                bool(topic_summary) and ("强制切分" in topic_summary or "会话归档" in topic_summary)
+            ) or topic_summary == ""
 
             memory_topic_summary = topic_summary
-            if archive_all and (
-                not memory_topic_summary or "强制切分" in (memory_topic_summary or "")
-            ):
-                if episode:
-                    memory_topic_summary = (
-                        episode.get("summary")
-                        or episode.get("title")
-                        or episode.get("content")
-                        or memory_topic_summary
-                    ).strip()
-                else:
-                    # If we only have an internal chunking reason, skip writing a
-                    # useless "reason" line into HISTORY/MEMORY.
-                    if forced_chunking_reason:
-                        memory_topic_summary = ""
+            if forced_chunked and episode:
+                memory_topic_summary = (
+                    episode.get("summary")
+                    or episode.get("title")
+                    or episode.get("content")
+                    or memory_topic_summary
+                ).strip()
+            elif forced_chunked:
+                memory_topic_summary = ""
 
-            if not memory_topic_summary:
-                memory_topic_summary = "对话片段" if not forced_chunking_reason else ""
-
-            ts = memcell.get("timestamp", datetime.now().isoformat())[:16]
-            if memory_topic_summary and memory_topic_summary != "会话归档":
+            if memory_topic_summary:
                 history_entry = f"[{ts}] {memory_topic_summary}"
                 self.append_history(history_entry)
 
-            await self._memory_md.append_topic_summary(
-                ts,
-                memory_topic_summary,
-                provider,
-                model,
-                archive_all=archive_all,
-            )
+                ts = memcell.get("timestamp", datetime.now().isoformat())[:16]
+                await self._memory_md.append_topic_summary(
+                    ts,
+                    memory_topic_summary,
+                    provider,
+                    model,
+                    archive_all=archive_all,
+                )
 
             session.last_consolidated = 0 if archive_all else len(session.messages) - keep_count
             logger.info("EnhancedMem consolidate done: last_consolidated={}", session.last_consolidated)
